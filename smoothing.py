@@ -92,11 +92,13 @@ def smSG_bisquare(x, y, w, n, extend=True):
         Radius of the filter window. The window size is 2*w+1.
     n : int
         Order of the smoothing polynomial.
-        
+    extend : bool
+        Whether to extend an input array to preserve its length after smoothing.
+
     Returns
     -------
-    out : array-like
-          Smoothed version of y coordinates.
+    out : tuple
+          X, Y, and median absolute deviation during poly approximation.
     """
     if extend:
         tx, ty = extended(x, y, w)  # extending input array
@@ -104,6 +106,7 @@ def smSG_bisquare(x, y, w, n, extend=True):
         tx, ty = x, y
     sx = np.zeros(len(tx) - 2*w)  # container for the output abscissas
     sy = np.zeros(len(ty) - 2*w)  # container for the smoothed y value
+    ms = np.zeros(len(ty) - 2*w)  # container for the median absolute deviations
     for i in range(w, len(ty) - w):  # index of the window central point
         wx = tx[i - w: i + w + 1]  # x coordinates inside the window
         wy = ty[i - w: i + w + 1]  # y coordinates inside the window
@@ -115,8 +118,10 @@ def smSG_bisquare(x, y, w, n, extend=True):
             W[r > (6 * m)] = 0
             p = Polynomial.fit(wx, wy, n, w=W)
         sx[i - w] = wx[w]
+        r = np.abs(p(wx) - wy)
         sy[i - w] = p(wx[w])  # smoothed value
-    return sx, sy
+        ms[i - w] = np.median(np.abs(r - np.median(r)))
+    return sx, sy, ms
 
 
 def smSGder(x, y, w, n):
@@ -401,8 +406,8 @@ def smSGtan(x, y, w, n):
 if __name__ == '__main__':
     # model data
     X = np.linspace(1, 9, 100)
-    p = np.poly1d([3, 1, 4])
-    Y = p(X)
+    P = np.poly1d([3, 1, 4])
+    Y = P(X)
     x = X + np.random.normal(0, 0.075, len(X))
     y = Y + np.random.normal(0, 5, len(X))
     y[30] = y[30] + 100
@@ -419,7 +424,7 @@ if __name__ == '__main__':
     axs[0, 0].set_title('Original data and noise')
     axs[0, 0].plot(x, y, '.', ms=3.0)
     axs[0, 0].plot(X, Y, lw=2.0)
-    axs[0, 0].twinx().bar(x, y - p(x), 0.1, color='skyblue', alpha=0.4)
+    axs[0, 0].twinx().bar(x, y - P(x), 0.1, color='skyblue', alpha=0.4)
 
     w = 9
     axs[0, 1].set_title('Extended, aka `Tailed`, data (w = {})'.format(w))
@@ -434,13 +439,13 @@ if __name__ == '__main__':
     axs[1, 0].plot(x, sy, 'r')
     tx = axs[1, 0].twinx()
     tx.bar(x, y - sy, 0.1, color='skyblue', alpha=0.4)
-    tx.bar(x, p(x) - sy, 0.1, color='green', alpha=0.25)
+    tx.bar(x, P(x) - sy, 0.1, color='green', alpha=0.25)
 
     axs[1, 1].set_title('Bisquare result (n = {})'.format(n))
     axs[1, 1].plot(x, y, '.', ms=3.0)
-    _, sy = smSG_bisquare(x, y, w, n)
+    _, sy, _ = smSG_bisquare(x, y, w, n)
     axs[1, 1].plot(x, sy)
     tx = axs[1, 1].twinx()
     tx.bar(x, y - sy, 0.1, color='skyblue', alpha=0.4)
-    tx.bar(x, p(x) - sy, 0.1, color='green', alpha=0.25)
+    tx.bar(x, P(x) - sy, 0.1, color='green', alpha=0.25)
     plt.show()
